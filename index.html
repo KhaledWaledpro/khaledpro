@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>احمي الكلب من النحل 🐶🐝</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Cairo', sans-serif;
+      background: #e0f7fa;
+    }
+    canvas {
+      display: none;
+      background: url('https://cdn.pixabay.com/photo/2017/08/30/07/52/landscape-2695825_960_720.png') no-repeat center;
+      background-size: cover;
+    }
+    #ui, #resultScreen {
+      position: absolute;
+      width: 100%;
+      text-align: center;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    button {
+      font-size: 20px;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 10px;
+      margin-top: 20px;
+      cursor: pointer;
+    }
+    #startBtn { background: #4caf50; color: white; }
+    #restartBtn { background: #2196F3; color: white; }
+    #soundToggle { background: #ff9800; color: white; }
+    #timer, #score, #level {
+      position: absolute;
+      background: rgba(0,0,0,0.5);
+      color: white;
+      padding: 10px 15px;
+      border-radius: 10px;
+      font-size: 18px;
+    }
+    #timer { top: 10px; left: 10px; }
+    #score { top: 10px; right: 10px; }
+    #level { top: 10px; left: 50%; transform: translateX(-50%); }
+    #resultScreen {
+      top: 30%;
+      display: none;
+    }
+    h1, h2 { color: #333; }
+  </style>
+</head>
+<body>
+
+  <div id="ui">
+    <h1>🐶 احمي الكلب من النحل 🐝</h1>
+    <p>ارسم خطًا لحماية الكلب لمدة 5 ثوانٍ على الأقل، كلما تقدمت، زاد الوقت والهجوم!</p>
+    <button id="startBtn">ابدأ اللعبة</button>
+    <button id="soundToggle">🔊 إيقاف الصوت</button>
+  </div>
+
+  <div id="resultScreen">
+    <h2 id="resultText"></h2>
+    <p id="finalScore"></p>
+    <button id="restartBtn">🔁 إعادة اللعب</button>
+  </div>
+
+  <canvas id="gameCanvas"></canvas>
+  <div id="timer">⏱️</div>
+  <div id="score">النقاط: 0</div>
+  <div id="level">المرحلة: 1</div>
+
+  <audio id="bgMusic" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_4f6a6832e7.mp3?filename=happy-day-112194.mp3" loop></audio>
+  <audio id="failSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_93e671c5c0.mp3?filename=game-over-arcade-6435.mp3"></audio>
+  <audio id="winSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_d6df1c3c47.mp3?filename=success-1-6297.mp3"></audio>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    let drawing = false, lines = [], gameRunning = false;
+    let bees = [], numBees = 5;
+    let timer = 5, level = 1, score = 0, timerInterval;
+    let bgMusic = document.getElementById("bgMusic");
+    let failSound = document.getElementById("failSound");
+    let winSound = document.getElementById("winSound");
+    let soundEnabled = true;
+
+    const dog = {
+      x: canvas.width / 2 - 40,
+      y: canvas.height - 120,
+      width: 80,
+      height: 80,
+      img: new Image()
+    };
+    dog.img.src = "https://cdn-icons-png.flaticon.com/512/616/616408.png";
+
+    function spawnBees() {
+      bees = [];
+      for (let i = 0; i < numBees; i++) {
+        bees.push({
+          x: Math.random() * canvas.width,
+          y: 0,
+          r: 15,
+          dx: (Math.random() - 0.5) * 3,
+          dy: Math.random() * 2 + level
+        });
+      }
+    }
+
+    function drawDog() {
+      ctx.drawImage(dog.img, dog.x, dog.y, dog.width, dog.height);
+    }
+
+    function drawBees() {
+      bees.forEach(b => {
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+        ctx.fillStyle = "yellow";
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(b.x - 5, b.y - 5, 3, 0, Math.PI * 2);
+        ctx.fillStyle = "black";
+        ctx.fill();
+      });
+    }
+
+    function drawLines() {
+      ctx.lineWidth = 10;
+      ctx.strokeStyle = "brown";
+      ctx.beginPath();
+      lines.forEach((pt, i) => {
+        if (i === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.stroke();
+    }
+
+    function animate() {
+      if (!gameRunning) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawDog(); drawLines(); drawBees();
+
+      bees.forEach(b => {
+        b.x += b.dx;
+        b.y += b.dy;
+
+        if (b.x < 0 || b.x > canvas.width) b.dx *= -1;
+
+        for (let i = 0; i < lines.length - 1; i++) {
+          let d = distanceToSegment(b.x, b.y, lines[i], lines[i+1]);
+          if (d < b.r) b.dy *= -1;
+        }
+
+        if (b.x > dog.x && b.x < dog.x + dog.width && b.y > dog.y && b.y < dog.y + dog.height) {
+          endGame(false);
+        }
+      });
+
+      requestAnimationFrame(animate);
+    }
+
+    function distanceToSegment(px, py, a, b) {
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const lenSq = dx * dx + dy * dy;
+      let t = ((px - a.x) * dx + (py - a.y) * dy) / lenSq;
+      t = Math.max(0, Math.min(1, t));
+      const lx = a.x + t * dx;
+      const ly = a.y + t * dy;
+      return Math.sqrt((px - lx) ** 2 + (py - ly) ** 2);
+    }
+
+    function startGame() {
+      gameRunning = true;
+      lines = [];
+      timer = 5 + level * 2;
+      spawnBees();
+      updateUI();
+      canvas.style.display = "block";
+      document.getElementById("ui").style.display = "none";
+      document.getElementById("resultScreen").style.display = "none";
+      if (soundEnabled) bgMusic.play();
+      animate();
+      startTimer();
+    }
+
+    function startTimer() {
+      document.getElementById("timer").textContent = `⏱️ ${timer}`;
+      timerInterval = setInterval(() => {
+        timer--;
+        document.getElementById("timer").textContent = `⏱️ ${timer}`;
+        if (timer <= 0) {
+          clearInterval(timerInterval);
+          endGame(true);
+        }
+      }, 1000);
+    }
+
+    function endGame(success) {
+      gameRunning = false;
+      clearInterval(timerInterval);
+      if (soundEnabled) {
+        bgMusic.pause();
+        success ? winSound.play() : failSound.play();
+      }
+      canvas.style.display = "none";
+      document.getElementById("resultScreen").style.display = "block";
+      document.getElementById("resultText").textContent = success ? "🎉 فزت!" : "🐝 فشلت! النحل لسع الكلب!";
+      if (success) {
+        score++;
+        level++;
+      } else {
+        score = 0;
+        level = 1;
+      }
+      updateUI();
+    }
+
+    function updateUI() {
+      document.getElementById("score").textContent = `النقاط: ${score}`;
+      document.getElementById("level").textContent = `المرحلة: ${level}`;
+      document.getElementById("finalScore").textContent = `✅ نقاطك: ${score} | المرحلة الحالية: ${level}`;
+    }
+
+    canvas.addEventListener("mousedown", e => {
+      if (!gameRunning) return;
+      drawing = true;
+      lines.push({ x: e.offsetX, y: e.offsetY });
+    });
+    canvas.addEventListener("mousemove", e => {
+      if (drawing) lines.push({ x: e.offsetX, y: e.offsetY });
+    });
+    canvas.addEventListener("mouseup", () => drawing = false);
+
+    document.getElementById("startBtn").onclick = startGame;
+    document.getElementById("restartBtn").onclick = startGame;
+
+    document.getElementById("soundToggle").onclick = () => {
+      soundEnabled = !soundEnabled;
+      document.getElementById("soundToggle").textContent = soundEnabled ? "🔊 إيقاف الصوت" : "🔇 تشغيل الصوت";
+      if (!soundEnabled) bgMusic.pause();
+    };
+
+    window.addEventListener("resize", () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+  </script>
+</body>
+</html>
